@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 const validator = require('validator')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-
+const tasks = require('./task')
 
 const userSchema = new mongoose.Schema({
     name:
@@ -34,10 +34,7 @@ const userSchema = new mongoose.Schema({
             if (value.toLowerCase().includes('password')) {
                 throw new Error("Password not contain password!!")
             }
-            // if(!validator.isStrongPassword(value))
-            // {
-            //     throw new Error("Please enter min 8 char long.At least one uppercase.At least one lower case.At least one special character.")
-            // }
+
         }
     },
     age:
@@ -56,15 +53,28 @@ const userSchema = new mongoose.Schema({
             type: String,
             required: true
         }
-    }]
+    }],
+    avatar:
+    {
+        type:Buffer
+    }
+},{
+    timestamps:true
+})
+
+userSchema.virtual('tasks', {
+    ref: 'tasks',
+    localField: '_id',
+    foreignField: 'owner'
 })
 
 // public profile data
 userSchema.methods.toJSON = function () {
-    const user=this
-    const userObject=user.toObject()
+    const user = this
+    const userObject = user.toObject()
     delete userObject.password
     delete userObject.tokens
+    delete userObject.avatar
     return userObject
 }
 
@@ -97,6 +107,13 @@ userSchema.pre('save', async function (next) {
         user.password = await bcrypt.hash(user.password, 8)
     }
 
+    next()
+})
+
+// Delete user tasks when user removed
+userSchema.pre('remove', async function (next) {
+    const user = this
+    await tasks.deleteMany({ owner: user._id })
     next()
 })
 const User = mongoose.model('User', userSchema)
